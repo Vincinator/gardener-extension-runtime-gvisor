@@ -1,0 +1,84 @@
+name: Update gVisor Version
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 6 * * *"
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: update-gvisor
+  cancel-in-progress: true
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Find latest gVisor release tag
+        id: fetch
+        shell: bash
+        run: |
+          set -euo pipefail
+          latest_tag="$(git ls-remote --tags --refs https://github.com/google/gvisor.git \
+            | awk -F/ '/refs\/tags\/release-/{print $NF}' \
+            | sort -V \
+            | tail -n1)"
+
+          if [[ -z "${latest_tag}" ]]; then
+            echo "No release-* tags found on google/gvisor" >&2
+            exit 1
+          fi
+
+          latest_version="${latest_tag#release-}"
+
+          echo "tag=${latest_tag}" >> "$GITHUB_OUTPUT"
+          echo "version=${latest_version}" >> "$GITHUB_OUTPUT"
+          echo "Latest tag: ${latest_tag}"
+          echo "Derived version: ${latest_version}"
+
+      - name: Read current version (if any)
+        id: current
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -f GVISOR_VERSION ]]; then
+            current="$(tr -d '\r\n' < GVISOR_VERSION)"
+          else
+            current=""
+          fi
+          echo "current=${current}" >> "$GITHUB_OUTPUT"
+          echo "Current version: ${current}"
+
+      - name: Update GVISOR_VERSION
+        if: steps.fetch.outputs.version != steps.current.outputs.current
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf "%s\n" "${{ steps.fetch.outputs.version }}" > GVISOR_VERSION
+          echo "Wrote ${{ steps.fetch.outputs.version }} to GVISOR_VERSION"
+
+      - name: Create pull request
+        if: steps.fetch.outputs.version != steps.current.outputs.current
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          branch: chore/update-gvisor-${{ steps.fetch.outputs.version }}
+          branch-suffix: timestamp
+          add-paths: |
+            GVISOR_VERSION
+          commit-message: "chore: bump gVisor to ${{ steps.fetch.outputs.version }}"
+          title: "chore: bump gVisor to ${{ steps.fetch.outputs.version }}"
+          body: |
+            Update `GVISOR_VERSION` to `${{ steps.fetch.outputs.version }}` (was `${{ steps.current.outputs.current }}`).
+            Source tag: `${{ steps.fetch.outputs.tag }}` from `google/gvisor`.
+
+      - name: No update needed
+        if: steps.fetch.outputs.version == steps.current.outputs.current
+        run: echo "GVISOR_VERSION already up to date."
+
