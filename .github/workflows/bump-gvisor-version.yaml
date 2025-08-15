@@ -72,11 +72,22 @@ jobs:
           branch-suffix: timestamp
           add-paths: |
             GVISOR_VERSION
-          commit-message: "chore: bump gVisor to ${{ steps.fetch.outputs.version }}"
+          commit-message: |
+            chore(gvisor): update to ${{ steps.fetch.outputs.version }}
+
+            Update GVISOR_VERSION from `${{ steps.current.outputs.current }}` to `${{ steps.fetch.outputs.version }}`.
+            Upstream tag: ${{ steps.fetch.outputs.tag }}
+            Diff: https://github.com/google/gvisor/compare/release-${{ steps.current.outputs.current }}...${{ steps.fetch.outputs.tag }}
           title: "chore: bump gVisor to ${{ steps.fetch.outputs.version }}"
           body: |
             Update `GVISOR_VERSION` to `${{ steps.fetch.outputs.version }}` (was `${{ steps.current.outputs.current }}`).
-            Source tag: `${{ steps.fetch.outputs.tag }}` from `google/gvisor`.
+            Diff: https://github.com/google/gvisor/compare/release-${{ steps.current.outputs.current }}...${{ steps.fetch.outputs.tag }}
+
+            **Release note**:
+            ```improvement operator
+            Updated gVisor binaries to `${{ steps.fetch.outputs.version }}`.
+            ```
+
 
       - name: No update needed
         if: steps.fetch.outputs.version == steps.current.outputs.current
