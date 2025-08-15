@@ -89,7 +89,7 @@ jobs:
           base_branch="$(gh repo view --json defaultBranchRef --jq .defaultBranchRef.name)"
           title="chore: bump gVisor to ${ver}"
           body=""
-          body+="_Bump gVisor from \`${current}\`) to \`${ver}\`._\n"
+          body+="Bump gVisor from \`${current}\` to \`${ver}\`.\n"
           if [[ -n "${current}" ]]; then
             body+="\nDiff: https://github.com/google/gvisor/compare/release-${current}...${latest_tag}\n"
           fi
