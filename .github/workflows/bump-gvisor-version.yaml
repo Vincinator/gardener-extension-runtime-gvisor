@@ -93,6 +93,8 @@ jobs:
           versionfile: "GVISOR_VERSION"
           version-operation: "noop"
           commit-kind: "bump" 
+          repository-operation: commit-to-head
+          version: ${{ steps.fetch_version.outputs.gvisor-version }}
 
       - name: Push prepare branch and create Pull Request
         shell: bash
