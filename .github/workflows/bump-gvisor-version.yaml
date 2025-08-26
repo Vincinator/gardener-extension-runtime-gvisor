@@ -61,7 +61,7 @@ jobs:
           echo "commit-message=${commit_msg}" >> ${GITHUB_OUTPUT}
           echo "pr-body=${body}" >> ${GITHUB_OUTPUT}
           echo "gVisor-version=$upstream_version" >> "$GITHUB_ENV"
-          echo "branch-name=bump-gvisor-to-$GVISOR_VERSION" >> "$GITHUB_ENV"
+          echo "branch-name=bump-gvisor-to-$upstream_version" >> "$GITHUB_ENV"
 
 
       - name: Verify and create branches (base on tag)
