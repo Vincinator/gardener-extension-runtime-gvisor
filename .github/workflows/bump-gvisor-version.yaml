@@ -22,8 +22,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Update GVISOR_VERSION and open/ensure PR
+      - name: get latest GVISOR_VERSION
         shell: bash
+        id: fetch_version
         run: |
           set -euo pipefail
 
@@ -32,66 +33,84 @@ jobs:
             | awk -F/ '/refs\/tags\/release-/{print $NF}' \
             | sort -V | tail -n1)"
           [[ -n "$latest_tag" ]] || { echo "No release-* tags found"; exit 1; }
-          ver="${latest_tag#release-}"
+          upstream_version="${latest_tag#release-}"
 
-          # Read current version (file must exist)
           if [[ ! -f GVISOR_VERSION ]]; then
             echo "Error: GVISOR_VERSION file not found." >&2
             exit 1
           fi
-          current="$(tr -d '\r\n' < GVISOR_VERSION || true)"
+          current_version="$(tr -d '\r\n' < GVISOR_VERSION || true)"
 
-          # Skip if already up-to-date
-          if [[ "$ver" == "${current}" ]]; then
-            echo "GVISOR_VERSION already $ver — nothing to do."
-            exit 0
-          fi
-
-          # Skip if branch already exists
-          branch="chore/update-gvisor-$ver"
-          if git ls-remote --exit-code --heads origin "$branch" >/dev/null 2>&1; then
-            echo "branch already exists, please close related PR first or delete branch manually: $branch"
-            exit 0
-          fi
-
-          # Prepare branch, write file, commit, push
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git config user.name  "github-actions[bot]"
-          git checkout -B "$branch"
-
-          printf '%s\n' "$ver" > GVISOR_VERSION
-          if git diff --quiet -- GVISOR_VERSION; then
-            echo "No file changes detected after write; exiting."
+          if [[ "$upstream_version" == "${current_version}" ]]; then
+            echo "GVISOR_VERSION already $upstream_version — nothing to do."
             exit 0
           fi
 
           commit_msg=""
-          commit_msg+="chore(gvisor): update to ${ver}\n\n"
-          commit_msg+="Update GVISOR_VERSION from \`${current}\` to \`${ver}\`.\n"
+          commit_msg+="chore(gvisor): update to ${upstream_version}\n\n"
+          commit_msg+="Update GVISOR_VERSION from \`${current_version}\` to \`${upstream_version}\`.\n"
           commit_msg+="Upstream tag: ${latest_tag}\n"
-          if [[ -n "${current}" ]]; then
-            commit_msg+="Diff: https://github.com/google/gvisor/compare/release-${current}...${latest_tag}\n"
+          if [[ -n "${current_version}" ]]; then
+            commit_msg+="Diff: https://github.com/google/gvisor/compare/release-${current_version}...${latest_tag}\n"
           fi
 
-          git add GVISOR_VERSION
-          git commit -m "$(printf '%b' "$commit_msg")"
-          git push -u origin "$branch"
-
-          # If PR already open for this head branch, don't create another
-          owner='${{ github.repository_owner }}'
-          existing_url="$(gh pr list --state open --head "${owner}:${branch}" --json url --jq '.[0].url // empty')"
-          if [[ -n "$existing_url" ]]; then
-            echo "PR already open: $existing_url"
-            exit 0
-          fi
-
-          # Create PR against default branch
-          base_branch="$(gh repo view --json defaultBranchRef --jq .defaultBranchRef.name)"
-          title="chore: bump gVisor to ${ver}"
           body=""
           body+="\nDiff: https://github.com/google/gvisor/compare/release-${current}...${latest_tag}\n"
           body+="\n**Release note**:\n\`\`\`improvement operator\nUpdated gVisor binaries to \`${ver}\`.\n\`\`\`\n"
 
-          gh pr create --base "$base_branch" --head "$branch" --title "$title" --body "$(printf '%b' "$body")"
+          echo "commit-message=${commit_msg}" >> ${GITHUB_OUTPUT}
+          echo "pr-body=${body}" >> ${GITHUB_OUTPUT}
+          echo "gVisor-version=$upstream_version" >> "$GITHUB_ENV"
+          echo "branch-name=bump-gvisor-to-$GVISOR_VERSION" >> "$GITHUB_ENV"
+
+
+      - name: Verify and create branches (base on tag)
+        shell: bash
+        env:
+          GVISOR_VERSION: ${{ steps.fetch_version.outputs.gvisor-version}}
+          BRANCH_NAME: ${{ steps.fetch_version.outputs.branch-name}}
+        run: |
+          set -euo pipefail
+          git fetch --tags origin
+
+
+          if git ls-remote --exit-code origin "$BRANCH_NAME" >/dev/null 2>&1; then
+            echo "gVisor version Bump branch $BRANCH_NAME already exists"
+            exit 0
+          fi
+
+          # Create the hotfix branch from the tag, push it, then create the prepare branch from hotfix
+          git checkout -b "$BRANCH_NAME"
+          echo "Created branch: $BRANCH_NAME"
+
+      - uses: gardener/cc-utils/.github/actions/version@master
+        id: version
+        name: create-release-commit
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          commit-message: ${{ steps.fetch.outputs.commit-message }}
+          versionfile: "GVISOR_VERSION"
+          version-operation: "noop"
+          commit-kind: "bump" 
+
+      - name: Push prepare branch and create Pull Request
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GVISOR_VERSION: ${{ steps.fetch_version.outputs.gvisor-version }}
+          PR_BODY: ${{ steps.fetch_version.outputs.pr-body }}
+          BRANCH_NAME: ${{ steps.fetch_version.outputs.branch-name }}
+        run: |
+          set -euo pipefail
+          base_branch="$(gh repo view --json defaultBranchRef --jq .defaultBranchRef.name)"
+          title="chore: bump gVisor to ${GVISOR_VERSION}"
+
+          git push origin "$BRANCH_NAME"
+          gh pr create \
+            --base "$base_branch" \
+            --head "$BRANCH_NAME" \
+            --title "$title" \
+            --body "$PR_BODY"
 
 
