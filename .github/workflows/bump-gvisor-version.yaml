@@ -28,9 +28,6 @@ jobs:
         run: |
           set -euo pipefail
 
-          # If exit early, we use this to stop pipeline without an error
-          echo "needs-update=false" >> "$GITHUB_OUTPUT" 
-
           # Find latest release-* tag upstream
           latest_tag="$(git ls-remote --tags --refs https://github.com/google/gvisor.git \
             | awk -F/ '/refs\/tags\/release-/{print $NF}' \
@@ -46,6 +43,7 @@ jobs:
 
           if [[ "$upstream_version" == "${current_version}" ]]; then
             echo "GVISOR_VERSION already $upstream_version — nothing to do."
+            echo "needs-update=false" >> "$GITHUB_OUTPUT" 
             exit 0
           fi
 
@@ -67,15 +65,23 @@ jobs:
           echo "gVisor-version=$upstream_version" >> "${GITHUB_OUTPUT}"
           echo "branch-name=$branch_name" >> "${GITHUB_OUTPUT}"
 
-          if git ls-remote --exit-code origin "$branch_name" >/dev/null 2>&1; then
-            echo "gVisor version Bump branch $branch_name already exists"
+          owner='${{ github.repository_owner }}'
+          existing_url="$(gh pr list --state open --head "${owner}:${branch_name}" --json url --jq '.[0].url // empty')"
+          if [[ -n "$existing_url" ]]; then
+            echo "PR already open: $existing_url"
+            echo "needs-update=false" >> "$GITHUB_OUTPUT" 
             exit 0
           fi
+          
+          # let pipeline fail because no PR exists for this branch
+          if git ls-remote --exit-code origin "$branch_name" >/dev/null 2>&1; then
+            echo "gVisor version Bump branch $branch_name already exists"
+            exit 1
+          fi
 
-          # Create the hotfix branch from the tag, push it, then create the prepare branch from hotfix
           git checkout -b "$branch_name"
           echo "Created branch: $branch_name"
-          echo "needs-update=true" >> "$GITHUB_OUTPUT" 
+          echo "needs-update=true" >> "${GITHUB_OUTPUT}" 
 
       - uses: gardener/cc-utils/.github/actions/version@master
         id: version
