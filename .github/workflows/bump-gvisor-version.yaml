@@ -85,7 +85,7 @@ jobs:
 
       - uses: gardener/cc-utils/.github/actions/version@master
         id: version
-        if: needs.fetch_version.outputs.needs-update == 'true'
+        if: steps.fetch_version.outputs.needs-update == 'true'
         name: create-release-commit
         env:
           GH_TOKEN: $
@@ -99,7 +99,7 @@ jobs:
 
       - name: Push prepare branch and create Pull Request
         shell: bash
-        if: needs.fetch_version.outputs.needs-update == 'true'
+        if: steps.fetch_version.outputs.needs-update == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GVISOR_VERSION: ${{ steps.fetch_version.outputs.gvisor-version }}
