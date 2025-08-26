@@ -28,6 +28,9 @@ jobs:
         run: |
           set -euo pipefail
 
+          # If exit early, we use this to stop pipeline without an error
+          echo "needs-update=false" >> "$GITHUB_OUTPUT" 
+
           # Find latest release-* tag upstream
           latest_tag="$(git ls-remote --tags --refs https://github.com/google/gvisor.git \
             | awk -F/ '/refs\/tags\/release-/{print $NF}' \
@@ -57,37 +60,29 @@ jobs:
           body=""
           body+="\nDiff: https://github.com/google/gvisor/compare/release-${current_version}...${latest_tag}\n"
           body+="\n**Release note**:\n\`\`\`improvement operator\nUpdated gVisor binaries to \`${upstream_version}\`.\n\`\`\`\n"
-
+          
+          branch_name="bump-gvisor-to-$upstream_version"
           echo "commit-message=${commit_msg}" >> ${GITHUB_OUTPUT}
           echo "pr-body=${body}" >> ${GITHUB_OUTPUT}
           echo "gVisor-version=$upstream_version" >> "${GITHUB_OUTPUT}"
-          echo "branch-name=bump-gvisor-to-$upstream_version" >> "${GITHUB_OUTPUT}"
+          echo "branch-name=$branch_name" >> "${GITHUB_OUTPUT}"
 
-
-      - name: Verify and create branches (base on tag)
-        shell: bash
-        env:
-          GVISOR_VERSION: ${{ steps.fetch_version.outputs.gvisor-version}}
-          BRANCH_NAME: ${{ steps.fetch_version.outputs.branch-name}}
-        run: |
-          set -euo pipefail
-          git fetch --tags origin
-
-
-          if git ls-remote --exit-code origin "$BRANCH_NAME" >/dev/null 2>&1; then
-            echo "gVisor version Bump branch $BRANCH_NAME already exists"
+          if git ls-remote --exit-code origin "$branch_name" >/dev/null 2>&1; then
+            echo "gVisor version Bump branch $branch_name already exists"
             exit 0
           fi
 
           # Create the hotfix branch from the tag, push it, then create the prepare branch from hotfix
           git checkout -b "$BRANCH_NAME"
           echo "Created branch: $BRANCH_NAME"
+          echo "needs-update=true" >> "$GITHUB_OUTPUT" 
 
       - uses: gardener/cc-utils/.github/actions/version@master
         id: version
+        if: needs.fetch_version.outputs.needs_update == 'true'
         name: create-release-commit
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: $
         with:
           commit-message: ${{ steps.fetch_version.outputs.commit-message }}
           versionfile: "GVISOR_VERSION"
@@ -98,6 +93,7 @@ jobs:
 
       - name: Push prepare branch and create Pull Request
         shell: bash
+        if: needs.fetch_version.outputs.needs_update == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GVISOR_VERSION: ${{ steps.fetch_version.outputs.gvisor-version }}
