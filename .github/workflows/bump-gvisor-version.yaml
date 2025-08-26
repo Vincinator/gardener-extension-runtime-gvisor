@@ -109,6 +109,6 @@ jobs:
             --base "$base_branch" \
             --head "$BRANCH_NAME" \
             --title "$title" \
-            --body "$PR_BODY"
+            --body "$(printf '%b' "$PR_BODY")"
 
 
