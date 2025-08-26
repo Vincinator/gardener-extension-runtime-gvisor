@@ -73,8 +73,8 @@ jobs:
           fi
 
           # Create the hotfix branch from the tag, push it, then create the prepare branch from hotfix
-          git checkout -b "$BRANCH_NAME"
-          echo "Created branch: $BRANCH_NAME"
+          git checkout -b "$branch_name"
+          echo "Created branch: $branch_name"
           echo "needs-update=true" >> "$GITHUB_OUTPUT" 
 
       - uses: gardener/cc-utils/.github/actions/version@master
