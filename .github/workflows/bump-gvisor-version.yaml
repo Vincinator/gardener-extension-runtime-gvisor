@@ -89,7 +89,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          commit-message: ${{ steps.fetch.outputs.commit-message }}
+          commit-message: ${{ steps.fetch_version.outputs.commit-message }}
           versionfile: "GVISOR_VERSION"
           version-operation: "noop"
           commit-kind: "bump" 
