@@ -55,8 +55,8 @@ jobs:
           fi
 
           body=""
-          body+="\nDiff: https://github.com/google/gvisor/compare/release-${current}...${latest_tag}\n"
-          body+="\n**Release note**:\n\`\`\`improvement operator\nUpdated gVisor binaries to \`${ver}\`.\n\`\`\`\n"
+          body+="\nDiff: https://github.com/google/gvisor/compare/release-${current_version}...${latest_tag}\n"
+          body+="\n**Release note**:\n\`\`\`improvement operator\nUpdated gVisor binaries to \`${upstream_version}\`.\n\`\`\`\n"
 
           echo "commit-message=${commit_msg}" >> ${GITHUB_OUTPUT}
           echo "pr-body=${body}" >> ${GITHUB_OUTPUT}
