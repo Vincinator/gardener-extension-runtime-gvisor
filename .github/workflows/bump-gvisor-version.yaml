@@ -67,13 +67,13 @@ jobs:
           # Use heredoc syntax for multiline output
           {
             echo "commit-message<<GITHUB_OUTPUT_EOF"
-            printf '%s\n' "$commit_msg"
+            echo -e "$commit_msg"
             echo "GITHUB_OUTPUT_EOF"
           } >> "$GITHUB_OUTPUT"
 
           {
             echo "pr-body<<GITHUB_OUTPUT_EOF"
-            printf '%s\n' "$body"
+            echo -e "$body"
             echo "GITHUB_OUTPUT_EOF"
           } >> "$GITHUB_OUTPUT"
 
